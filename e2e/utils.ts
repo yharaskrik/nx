@@ -83,6 +83,14 @@ export function runYarnInstall(silent: boolean = true) {
   return install ? install.toString() : '';
 }
 
+export function runNgcc(silent: boolean = true) {
+  const install = execSync('node ./node_modules/.bin/ngcc', {
+    cwd: tmpProjPath(),
+    ...(silent ? { stdio: ['ignore', 'ignore', 'ignore'] } : {})
+  });
+  return install ? install.toString() : '';
+}
+
 /**
  * Run the `new` command for the currently selected CLI
  *
@@ -148,6 +156,8 @@ function default_1(factoryOptions = {}) {
 }
 exports.default = default_1;`
     );
+
+    runNgcc();
 
     execSync(`mv ${tmpProjPath()} ${tmpBackupProjPath()}`);
   }
@@ -238,6 +248,7 @@ export function copyMissingPackages(): void {
     'document-register-element',
 
     '@angular/forms',
+    '@storybook',
 
     // For web builder with inlined build-angular
     'source-map',
