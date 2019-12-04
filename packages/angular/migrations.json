@@ -1,8 +1,9 @@
 {
   "schematics": {
     "add-postinstall": {
+      "version": "0.0.1",
       "description": "Adds postinstall to run ngcc",
-      "factory": "./src/migrations/update-9-0-0/update-9-0-0#addPostinstall",
+      "factory": "./src/migrations/update-9-0-0/add-postinstall",
       "hidden": true
     },
     "upgrade-ngrx-8-0": {
