@@ -4,7 +4,7 @@ import {
   TaskCompleteEvent,
   TasksRunner
 } from '@nrwl/workspace/src/tasks-runner/tasks-runner';
-import { Observable, Subject } from 'rxjs';
+import {Observable, Subject} from 'rxjs';
 import {
   tasksRunnerV2,
   DefaultTasksRunnerOptions,
@@ -12,9 +12,9 @@ import {
 } from '@nrwl/workspace/src/tasks-runner/tasks-runner-v2';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ProjectGraph } from '@nrwl/workspace/src/core/project-graph';
-import { NxJson } from '@nrwl/workspace/src/core/shared-interfaces';
-import { writeFileSync } from 'fs';
+import {ProjectGraph} from '@nrwl/workspace/src/core/project-graph';
+import {NxJson} from '@nrwl/workspace/src/core/shared-interfaces';
+import {writeFileSync} from 'fs';
 
 const axios = require('axios');
 const tar = require('tar');
@@ -30,17 +30,20 @@ type Context = {
 };
 
 class InsightsRemoteCache implements RemoteCache {
-  constructor(private readonly axiosInstance: any) {}
+  constructor(private readonly axiosInstance: any) {
+  }
 
   async retrieve(hash: string, cacheDirectory: string): Promise<boolean> {
     try {
+      const url = await this.getDownloadUrl(hash);
+      const file = this.createFileName(hash, cacheDirectory);
       const resp = await this.axiosInstance({
         method: 'get',
         url: `/nx-cache/${hash}`,
-        maxContentLength: 1000 * 1000 * 100
+        maxContentLength: 1000 * 1000 * 200
       });
       const tg = path.join(cacheDirectory, `${hash}.tg`);
-      writeFileSync(tg, resp.data, { encoding: 'base64' });
+      writeFileSync(tg, resp.data, {encoding: 'base64'});
       await tar.x({
         file: tg,
         cwd: cacheDirectory
@@ -50,7 +53,7 @@ class InsightsRemoteCache implements RemoteCache {
     } catch (e) {
       if (e.response && e.response.status === 404) {
         // cache miss. print nothing
-      } else if (e.code === 'ECONNREFUSED') {
+      } else if (e.code === 'ECONNREFUSED' || e.code === 'EAI_AGAIN') {
         console.error(`Error: Cannot connect to remote cache.`);
       } else {
         console.error(e.message);
@@ -60,31 +63,61 @@ class InsightsRemoteCache implements RemoteCache {
   }
 
   async store(hash: string, cacheDirectory: string): Promise<boolean> {
-    const tg = path.join(cacheDirectory, `${hash}.tg`);
     try {
-      await tar.c(
-        {
-          gzip: false,
-          file: tg,
-          cwd: cacheDirectory
-        },
-        [hash]
-      );
-      await this.axiosInstance({
-        method: 'post',
-        url: `/nx-cache/${hash}`,
-        data: { tgz: fs.readFileSync(tg).toString('base64') },
-        maxContentLength: 1000 * 1000 * 50
-      });
+      const tgz = await this.createFile(hash, cacheDirectory);
+      const url = await this.getUploadUrl(hash);
+      await this.uploadFile(url, tgz);
       return true;
     } catch (e) {
-      if (e.code === 'ECONNREFUSED') {
+      if (e.code === 'ECONNREFUSED' || e.code === 'EAI_AGAIN') {
         console.error(`Error: Cannot connect to remote cache.`);
       } else {
         console.error(e.message);
       }
       return false;
     }
+  }
+
+  private async getDownloadUrl(hash: string) {
+    const resp = await this.axiosInstance({
+      method: 'get',
+      url: `/nx-cache/${hash}`
+    });
+    return resp.data.url;
+  }
+
+  private async createFile(hash: string, cacheDirectory: string) {
+    const tgz = this.createFileName(hash, cacheDirectory);
+    await tar.c(
+      {
+        gzip: true,
+        file: tgz,
+        cwd: cacheDirectory
+      },
+      [hash]
+    );
+    return tgz;
+  }
+
+  private createFileName(hash: string, cacheDirectory: string) {
+    return path.join(cacheDirectory, `${hash}.tar.gz`);
+  }
+
+  private async getUploadUrl(hash: string) {
+    const resp = await this.axiosInstance({
+      method: 'get',
+      url: `/nx-cache/store/${hash}`
+    });
+    return resp.data.url;
+  }
+
+  private async uploadFile(url: string, tgz: string) {
+    await this.axiosInstance(url, {
+      method: 'PUT',
+      data: fs.readFileSync(tgz),
+      headers: {'Content-Type': 'application/octet-stream'},
+      maxContentLength: 1000 * 1000 * 200
+    });
   }
 }
 
@@ -100,7 +133,7 @@ const insightsTaskRunner: TasksRunner<InsightsTaskRunnerOptions> = (
 
   let commandResult = true;
   notifier.startCommand(tasks).then(() => {
-    tasksRunnerV2(tasks, { ...options, remoteCache }, context).subscribe({
+    tasksRunnerV2(tasks, {...options, remoteCache}, context).subscribe({
       next: (t: TaskCompleteEvent) => {
         commandResult = commandResult && t.success;
         res.next(t);
@@ -151,7 +184,7 @@ function createAxios(options: InsightsTaskRunnerOptions) {
   return axios.create({
     baseURL: options.insightsUrl || 'https://nrwl.api.io',
     timeout: 30000,
-    headers: { authorization: `auth ${process.env.NX_INSIGHTS_AUTH_TOKEN}` }
+    headers: {authorization: `auth ${process.env.NX_INSIGHTS_AUTH_TOKEN}`}
   });
 }
 
@@ -202,7 +235,8 @@ class EmptyNotifier implements Notifier {
     return Promise.resolve();
   }
 
-  endTask(taskId: string, result: string, log: string) {}
+  endTask(taskId: string, result: string, log: string) {
+  }
 }
 
 class InsightsNotifier implements Notifier {
