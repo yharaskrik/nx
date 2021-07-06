@@ -2,7 +2,12 @@ import { runCLI } from 'jest';
 import * as path from 'path';
 import { JestExecutorOptions } from './schema';
 import { Config } from '@jest/types';
-import { ExecutorContext } from '@nrwl/devkit';
+import { ExecutorContext, logger, stripIndents } from '@nrwl/devkit';
+import { createProjectGraph } from '@nrwl/workspace/src/core/project-graph';
+import {
+  calculateProjectDependencies,
+  checkDependentProjectsHaveBeenBuilt,
+} from '@nrwl/workspace/src/utils/buildable-libs-utils';
 
 try {
   require('dotenv').config();
@@ -19,6 +24,25 @@ export async function jestExecutor(
   context: ExecutorContext
 ): Promise<{ success: boolean }> {
   const config = jestConfigParser(options, context);
+
+  const projGraph = createProjectGraph();
+
+  const depContext = {
+    workspaceRoot: context.root,
+    target: {
+      target: 'build',
+      project: context.projectName,
+    },
+    logger: logger,
+  };
+
+  const { dependencies } = calculateProjectDependencies(projGraph, depContext);
+
+  const built = checkDependentProjectsHaveBeenBuilt(depContext, dependencies);
+
+  if (!built) {
+    return { success: false };
+  }
 
   const { results } = await runCLI(config, [options.jestConfig]);
 

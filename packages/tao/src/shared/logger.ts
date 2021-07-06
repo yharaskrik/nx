@@ -1,12 +1,21 @@
 import * as chalk from 'chalk';
 
+export interface NxLogger {
+  warn: (s: string) => void;
+  error: (s: string) => void;
+  info: (s: string) => void;
+  log: (...s: any[]) => void;
+  debug: (...s: any[]) => void;
+  fatal: (...s: any[]) => void;
+}
+
 export const NX_PREFIX = `${chalk.cyan('>')} ${chalk.inverse(
   chalk.bold(chalk.cyan(' NX '))
 )}`;
 
 export const NX_ERROR = chalk.inverse(chalk.bold(chalk.red(' ERROR ')));
 
-export const logger = {
+export const logger: NxLogger = {
   warn: (s) => console.warn(chalk.bold(chalk.yellow(s))),
   error: (s) => {
     if (s.startsWith('NX ')) {

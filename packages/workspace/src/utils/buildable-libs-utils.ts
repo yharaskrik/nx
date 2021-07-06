@@ -11,6 +11,9 @@ import { stripIndents } from '@angular-devkit/core/src/utils/literals';
 import { getOutputsForTargetAndConfiguration } from '../tasks-runner/utils';
 import * as ts from 'typescript';
 import { unlinkSync } from 'fs';
+import { logging } from '@angular-devkit/core';
+import { NxLogger } from '@nrwl/tao/src/shared/logger';
+import { logger } from '@nrwl/devkit';
 
 function isBuildable(target: string, node: ProjectGraphNode): boolean {
   return (
@@ -28,7 +31,10 @@ export type DependentBuildableProjectNode = {
 
 export function calculateProjectDependencies(
   projGraph: ProjectGraph,
-  context: BuilderContext
+  context: {
+    target?: { target: string; project: string };
+    workspaceRoot: string;
+  }
 ): { target: ProjectGraphNode; dependencies: DependentBuildableProjectNode[] } {
   const target = projGraph.nodes[context.target.project];
   // gather the library dependencies
@@ -160,7 +166,11 @@ function cleanupTmpTsConfigFile(tmpTsConfigPath) {
 }
 
 export function checkDependentProjectsHaveBeenBuilt(
-  context: BuilderContext,
+  context: {
+    workspaceRoot: string;
+    logger: NxLogger;
+    target?: { project: string; target: string };
+  },
   projectDependencies: DependentBuildableProjectNode[]
 ): boolean {
   const depLibsToBuildFirst: DependentBuildableProjectNode[] = [];
@@ -174,6 +184,8 @@ export function checkDependentProjectsHaveBeenBuilt(
     const paths = dep.outputs.map((p) =>
       join(context.workspaceRoot, p, 'package.json')
     );
+
+    context.logger.error(paths.toString());
 
     if (!paths.some(fileExists)) {
       depLibsToBuildFirst.push(dep);
