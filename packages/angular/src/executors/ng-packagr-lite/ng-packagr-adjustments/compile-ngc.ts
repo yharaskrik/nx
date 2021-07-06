@@ -19,6 +19,9 @@ import { STYLESHEET_PROCESSOR_TOKEN } from 'ng-packagr/lib/styles/stylesheet-pro
 import { setDependenciesTsConfigPaths } from 'ng-packagr/lib/ts/tsconfig';
 import * as path from 'path';
 import * as ts from 'typescript';
+import { rollupBundleFile } from 'ng-packagr/lib/flatten/rollup';
+import { downlevelCodeWithTsc } from 'ng-packagr/lib/flatten/downlevel-plugin';
+import { NgEntryPoint } from 'ng-packagr/lib/ng-package/entry-point/entry-point';
 
 export const nxCompileNgcTransformFactory = (
   StylesheetProcessor: typeof StylesheetProcessorClass
@@ -34,10 +37,16 @@ export const nxCompileNgcTransformFactory = (
       );
 
       // Compile TypeScript sources
-      const { esm2015, declarations } = entryPoint.data.destinationFiles;
+      const { esm2015, declarations, umd } = entryPoint.data.destinationFiles;
       const { moduleResolutionCache } = entryPoint.cache;
-      const { basePath, cssUrl, styleIncludePaths } =
-        entryPoint.data.entryPoint;
+      const {
+        basePath,
+        cssUrl,
+        styleIncludePaths,
+        umdId,
+        amdId,
+        umdModuleIds,
+      } = entryPoint.data.entryPoint;
       const stylesheetProcessor = new StylesheetProcessor(
         basePath,
         cssUrl,
@@ -56,6 +65,38 @@ export const nxCompileNgcTransformFactory = (
           target: ts.ScriptTarget.ES2015,
         }
       );
+
+      // This would be a flag in nx.json or elsewhere that would enable testing from build source
+      if (true) {
+        // Add UMD module IDs for dependencies
+        const dependencyUmdIds = entryPoint
+          .filter(isEntryPoint)
+          .map((ep) => ep.data.entryPoint)
+          .reduce((prev, ep: NgEntryPoint) => {
+            prev[ep.moduleId] = ep.umdId;
+
+            return prev;
+          }, {});
+
+        const opts = {
+          sourceRoot: tsConfig.options.sourceRoot,
+          amd: { id: amdId },
+          umdModuleIds: {
+            ...umdModuleIds,
+            ...dependencyUmdIds,
+          },
+          entry: esm2015,
+        };
+
+        await rollupBundleFile({
+          ...opts,
+          moduleName: umdId,
+          entry: esm2015,
+          format: 'umd',
+          dest: umd,
+          transform: downlevelCodeWithTsc,
+        });
+      }
     } catch (error) {
       throw error;
     }
