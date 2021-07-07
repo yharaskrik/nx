@@ -2,7 +2,19 @@ import { runCLI } from 'jest';
 import * as path from 'path';
 import { JestExecutorOptions } from './schema';
 import { Config } from '@jest/types';
-import { ExecutorContext } from '@nrwl/devkit';
+import {
+  ExecutorContext,
+  logger,
+  offsetFromRoot,
+  stripIndents,
+} from '@nrwl/devkit';
+import { createProjectGraph } from '@nrwl/workspace/src/core/project-graph';
+import {
+  calculateProjectDependencies,
+  checkDependentProjectsHaveBeenBuilt,
+} from '@nrwl/workspace/src/utils/buildable-libs-utils';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { readNxJson } from '@nrwl/workspace';
 
 try {
   require('dotenv').config();
@@ -20,7 +32,68 @@ export async function jestExecutor(
 ): Promise<{ success: boolean }> {
   const config = jestConfigParser(options, context);
 
-  const { results } = await runCLI(config, [options.jestConfig]);
+  const projGraph = createProjectGraph();
+
+  const nxJson = readNxJson();
+
+  const depContext = {
+    workspaceRoot: context.root,
+    target: {
+      target: 'build',
+      project: context.projectName,
+    },
+    logger: logger,
+  };
+
+  const { dependencies } = calculateProjectDependencies(projGraph, depContext);
+
+  const built = checkDependentProjectsHaveBeenBuilt(depContext, dependencies);
+
+  if (!built) {
+    return { success: false };
+  }
+
+  let jestConfig: string = readFileSync(options.jestConfig).toString();
+
+  const npmScope = `@${nxJson.npmScope}`;
+
+  const moduleNameMapper = dependencies
+    .filter((dependency) => dependency.name.startsWith(npmScope))
+    .reduce(
+      (prev, cur) => ({
+        ...prev,
+        [cur.name]: `<rootDir>/${offsetFromRoot(cur.node.data.root)}dist/${
+          cur.node.data.root
+        }/bundles/${nxJson.npmScope}-${cur.node.name}.umd.js`,
+      }),
+      {}
+    );
+
+  const nameProp = `'${context.projectName}',`;
+
+  jestConfig = jestConfig.replace(
+    nameProp,
+    `${nameProp}\nmoduleNameMapper:\n${JSON.stringify(moduleNameMapper)},\n`
+  );
+
+  const root = context.workspace.projects[context.projectName].root.split('/');
+  root.shift();
+
+  const dir = `${context.cwd}/tmp/${root.join('/')}`;
+
+  mkdirSync(dir, { recursive: true });
+
+  const newJestConfigPath = `${dir}/jest.config.js`;
+
+  writeFileSync(newJestConfigPath, jestConfig);
+
+  const { results } = await runCLI(
+    {
+      ...config,
+      rootDir: context.workspace.projects[context.projectName].root,
+    },
+    [newJestConfigPath]
+  );
 
   return { success: results.success };
 }

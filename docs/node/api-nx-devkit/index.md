@@ -477,18 +477,7 @@ Implementation of a target of a project that handles multiple projects to be bat
 
 ### logger
 
-• `Const` **logger**: _object_
-
-#### Type declaration
-
-| Name    | Type                        |
-| :------ | :-------------------------- |
-| `debug` | (...`s`: _any_[]) => _void_ |
-| `error` | (`s`: _any_) => _void_      |
-| `fatal` | (...`s`: _any_[]) => _void_ |
-| `info`  | (`s`: _any_) => _void_      |
-| `log`   | (...`s`: _any_[]) => _void_ |
-| `warn`  | (`s`: _any_) => _void_      |
+• `Const` **logger**: NxLogger
 
 ## Functions
 
