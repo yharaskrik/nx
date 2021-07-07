@@ -185,8 +185,6 @@ export function checkDependentProjectsHaveBeenBuilt(
       join(context.workspaceRoot, p, 'package.json')
     );
 
-    context.logger.error(paths.toString());
-
     if (!paths.some(fileExists)) {
       depLibsToBuildFirst.push(dep);
     }
