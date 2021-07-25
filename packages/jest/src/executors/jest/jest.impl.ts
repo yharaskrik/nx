@@ -5,16 +5,17 @@ import { Config } from '@jest/types';
 import {
   ExecutorContext,
   logger,
+  NxJsonConfiguration,
   offsetFromRoot,
-  stripIndents,
+  readJsonFile,
 } from '@nrwl/devkit';
 import { createProjectGraph } from '@nrwl/workspace/src/core/project-graph';
 import {
   calculateProjectDependencies,
   checkDependentProjectsHaveBeenBuilt,
+  DependentBuildableProjectNode,
 } from '@nrwl/workspace/src/utils/buildable-libs-utils';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { readNxJson } from '@nrwl/workspace';
 
 try {
   require('dotenv').config();
@@ -26,54 +27,41 @@ if (process.env.NODE_ENV === null || process.env.NODE_ENV === undefined) {
   (process.env as any).NODE_ENV = 'test';
 }
 
-export async function jestExecutor(
-  options: JestExecutorOptions,
-  context: ExecutorContext
-): Promise<{ success: boolean }> {
-  const config = jestConfigParser(options, context);
+function buildModuleNameMapper(
+  npmScope: string,
+  dependencies: DependentBuildableProjectNode[]
+): Record<string, string> {
+  const atNpmScope = `@${npmScope}`;
 
-  const projGraph = createProjectGraph();
-
-  const nxJson = readNxJson();
-
-  const depContext = {
-    workspaceRoot: context.root,
-    target: {
-      target: 'build',
-      project: context.projectName,
-    },
-    logger: logger,
-  };
-
-  const { dependencies } = calculateProjectDependencies(projGraph, depContext);
-
-  const built = checkDependentProjectsHaveBeenBuilt(depContext, dependencies);
-
-  if (!built) {
-    return { success: false };
-  }
-
-  let jestConfig: string = readFileSync(options.jestConfig).toString();
-
-  const npmScope = `@${nxJson.npmScope}`;
-
-  const moduleNameMapper = dependencies
-    .filter((dependency) => dependency.name.startsWith(npmScope))
+  return dependencies
+    .filter((dependency) => dependency.name.startsWith(atNpmScope))
     .reduce(
       (prev, cur) => ({
         ...prev,
         [cur.name]: `<rootDir>/${offsetFromRoot(cur.node.data.root)}dist/${
           cur.node.data.root
-        }/bundles/${nxJson.npmScope}-${cur.node.name}.umd.js`,
+        }/bundles/${npmScope}-${cur.node.name}.umd.js`,
       }),
       {}
     );
+}
+
+function createTmpJestConfig(
+  options: JestExecutorOptions,
+  context: ExecutorContext,
+  dependencies: DependentBuildableProjectNode[]
+): string {
+  let jestConfig: string = readFileSync(options.jestConfig).toString();
 
   const nameProp = `'${context.projectName}',`;
 
+  const nxJson = readJsonFile<NxJsonConfiguration>('nx.json');
+
   jestConfig = jestConfig.replace(
     nameProp,
-    `${nameProp}\nmoduleNameMapper:\n${JSON.stringify(moduleNameMapper)},\n`
+    `${nameProp}\nmoduleNameMapper:\n${JSON.stringify(
+      buildModuleNameMapper(nxJson.npmScope, dependencies)
+    )},\n`
   );
 
   const root = context.workspace.projects[context.projectName].root.split('/');
@@ -83,16 +71,52 @@ export async function jestExecutor(
 
   mkdirSync(dir, { recursive: true });
 
-  const newJestConfigPath = `${dir}/jest.config.js`;
+  const config = `${dir}/jest.config.js`;
 
-  writeFileSync(newJestConfigPath, jestConfig);
+  writeFileSync(config, jestConfig);
+
+  return config;
+}
+
+export async function jestExecutor(
+  options: JestExecutorOptions,
+  context: ExecutorContext
+): Promise<{ success: boolean }> {
+  const config = jestConfigParser(options, context);
+
+  //Can only run tests with artifacts if not in watch mode
+  if (options.testWithArtifacts && !options.watch && !options.watchAll) {
+    const projGraph = createProjectGraph();
+
+    const depContext = {
+      workspaceRoot: context.root,
+      target: {
+        target: 'build',
+        project: context.projectName,
+      },
+      logger: logger,
+    };
+
+    const { dependencies } = calculateProjectDependencies(
+      projGraph,
+      depContext
+    );
+
+    const built = checkDependentProjectsHaveBeenBuilt(depContext, dependencies);
+
+    if (!built) {
+      return { success: false };
+    }
+
+    config.config = createTmpJestConfig(options, context, dependencies);
+  }
 
   const { results } = await runCLI(
     {
       ...config,
       rootDir: context.workspace.projects[context.projectName].root,
     },
-    [newJestConfigPath]
+    [config.config]
   );
 
   return { success: results.success };
