@@ -233,5 +233,10 @@
     "name": "@nxtensions/astro",
     "description": "Nx plugin adding first class support for Astro (https://astro.build).",
     "url": "https://github.com/nxtensions/nxtensions/tree/main/packages/astro"
+  },
+  {
+    "name": "@trellisorg/nxls",
+    "description": "Analyze your repositories dependency graph. 'ls' projects, circular or unused deps, dep chains and overlap between two projects.",
+    "url": "https://github.com/trellisorg/platform/tree/master/packages/nxls"
   }
 ]
