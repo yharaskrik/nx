@@ -11,11 +11,12 @@
       }
     },
     "test": {
-      "executor": "@nrwl/jest:jest",
+      "executor": "@trellisorg/nx-jest:jest",
       "outputs": ["coverage/js"],
       "options": {
         "jestConfig": "packages/js/jest.config.js",
-        "passWithNoTests": true
+        "passWithNoTests": true,
+        "testFromSource": false
       }
     },
     "build-base": {

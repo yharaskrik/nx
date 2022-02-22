@@ -342,7 +342,7 @@ Object {
       "builder": "@nrwl/jest:jest",
       "options": Object {
         "jestConfig": "apps/my-dir/my-app/jest.config.js",
-        "passWithNoTests": true,
+        "passWithNoTests": true, "testFromSource": false,
       },
       "outputs": Array [
         "coverage/apps/my-dir/my-app",
@@ -511,7 +511,7 @@ Object {
       "builder": "@nrwl/jest:jest",
       "options": Object {
         "jestConfig": "apps/my-app/jest.config.js",
-        "passWithNoTests": true,
+        "passWithNoTests": true, "testFromSource": false,
       },
       "outputs": Array [
         "coverage/apps/my-app",

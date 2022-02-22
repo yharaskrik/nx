@@ -4,10 +4,11 @@
   "projectType": "library",
   "targets": {
     "test": {
-      "executor": "@nrwl/jest:jest",
+      "executor": "@trellisorg/nx-jest:jest",
       "options": {
         "jestConfig": "packages/storybook/jest.config.js",
-        "passWithNoTests": true
+        "passWithNoTests": true,
+        "testFromSource": false
       },
       "outputs": ["coverage/packages/storybook"]
     },

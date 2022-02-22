@@ -44,6 +44,12 @@
         "target": "build-base",
         "projects": "dependencies"
       }
+    ],
+    "test": [
+      {
+        "target": "build",
+        "projects": "dependencies"
+      }
     ]
   },
   "workspaceLayout": {
